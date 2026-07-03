@@ -1,0 +1,13 @@
+let
+    Source = Csv.Document(File.Contents("E:\DataForge_Internship_DAKSHINI\DataForge_EDA_Sprint_2026_2026CS001\01_data\raw\dataset_raw.csv.csv"),[Delimiter=",", Columns=18, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Row ID", Int64.Type}, {"Order ID", type text}, {"Order Date", type date}, {"Ship Date", type date}, {"Ship Mode", type text}, {"Customer ID", type text}, {"Customer Name", type text}, {"Segment", type text}, {"Country", type text}, {"City", type text}, {"State", type text}, {"Postal Code", Int64.Type}, {"Region", type text}, {"Product ID", type text}, {"Category", type text}, {"Sub-Category", type text}, {"Product Name", type text}, {"Sales", type text}}),
+    #"Split Column by Delimiter" = Table.SplitColumn(#"Changed Type", "Order ID", Splitter.SplitTextByDelimiter("-", QuoteStyle.Csv), {"Order ID.1", "Order ID.2", "Order ID.3"}),
+    #"Changed Type1" = Table.TransformColumnTypes(#"Split Column by Delimiter",{{"Order ID.1", type text}, {"Order ID.2", Int64.Type}, {"Order ID.3", Int64.Type}}),
+    #"Inserted Year" = Table.AddColumn(#"Changed Type1", "Year", each Date.Year([Order Date]), Int64.Type),
+    #"Inserted Year1" = Table.AddColumn(#"Inserted Year", "Year.1", each Date.Year([Order Date]), Int64.Type),
+    #"Replaced Value" = Table.ReplaceValue(#"Inserted Year1","?","",Replacer.ReplaceText,{"Sales"}),
+    #"Changed Type2" = Table.TransformColumnTypes(#"Replaced Value",{{"Sales", type number}}),
+    #"Added Conditional Column" = Table.AddColumn(#"Changed Type2", "Order Size", each if [Sales] > 500 then "Large Order" else null)
+in
+    #"Added Conditional Column"

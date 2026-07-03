@@ -1,0 +1,2 @@
+Exact Shape: (9800, 18)
+Memory Usage: 3338723 bytes

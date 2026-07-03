@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Performance Dashboard (Live Data)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse for reading CSV files locally -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <!-- Header & File Upload -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900">Executive Performance Dashboard</h1>
+                <p class="text-slate-500 mt-1">Select your dataset to generate your live dashboard.</p>
+            </div>
+            
+            <div class="flex flex-col gap-2">
+                <label for="csvFileInput" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium cursor-pointer transition-colors shadow-sm flex items-center gap-2">
+                    <i class="fas fa-upload"></i> Upload Cleaned CSV
+                </label>
+                <input type="file" id="csvFileInput" accept=".csv" class="hidden" />
+                <p id="uploadStatus" class="text-xs text-slate-400 text-right">No file selected yet</p>
+            </div>
+        </div>
+
+        <!-- Dashboard Content (Hidden until data is loaded) -->
+        <div id="dashboardContent" class="hidden opacity-0 transition-opacity duration-500">
+            <!-- Slicers -->
+            <div class="flex flex-wrap gap-3 mb-6 justify-end">
+                <div class="bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200 flex items-center gap-2">
+                    <i class="fas fa-calendar text-blue-500"></i>
+                    <select id="yearSlicer" class="bg-transparent font-medium outline-none cursor-pointer" onchange="updateDashboard()">
+                        <option value="All">All Years</option>
+                    </select>
+                </div>
+                <div class="bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200 flex items-center gap-2">
+                    <i class="fas fa-globe text-blue-500"></i>
+                    <select id="countrySlicer" class="bg-transparent font-medium outline-none cursor-pointer" onchange="updateDashboard()">
+                        <option value="All">All Countries</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col justify-center">
+                    <p class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Total Sales</p>
+                    <h2 id="kpiSales" class="text-3xl font-bold text-slate-800 mt-2">$0.00</h2>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col justify-center">
+                    <p class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Total Profit</p>
+                    <h2 id="kpiProfit" class="text-3xl font-bold text-slate-800 mt-2">$0.00</h2>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col justify-center">
+                    <p class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Total Orders</p>
+                    <h2 id="kpiOrders" class="text-3xl font-bold text-slate-800 mt-2">0</h2>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col justify-center">
+                    <p class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Avg. Order Value</p>
+                    <h2 id="kpiAvg" class="text-3xl font-bold text-slate-800 mt-2">$0.00</h2>
+                </div>
+            </div>
+
+            <!-- Charts Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <!-- Pivot Table 1 Chart: Region -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <h3 class="text-lg font-bold text-slate-700 mb-4">Sales by Region (Pivot 1)</h3>
+                    <div class="relative h-64 w-full">
+                        <canvas id="regionChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Pivot Table 2 Chart: Category -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <h3 class="text-lg font-bold text-slate-700 mb-4">Sales by Category (Pivot 2)</h3>
+                    <div class="relative h-64 w-full">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pivot Table 3 Chart: Trend -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-8">
+                <h3 class="text-lg font-bold text-slate-700 mb-4">Sales Trend by Month (Pivot 3)</h3>
+                <div class="relative h-80 w-full">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let globalData = [];
+        let regionChart, categoryChart, trendChart;
+
+        // Initialize empty charts on load
+        window.onload = () => {
+            Chart.defaults.font.family = 'Inter, sans-serif';
+            Chart.defaults.color = '#64748b';
+
+            const ctxRegion = document.getElementById('regionChart').getContext('2d');
+            regionChart = new Chart(ctxRegion, {
+                type: 'bar',
+                data: { labels: [], datasets: [{ label: 'Sales ($)', data: [], backgroundColor: '#3b82f6', borderRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            const ctxCategory = document.getElementById('categoryChart').getContext('2d');
+            categoryChart = new Chart(ctxCategory, {
+                type: 'doughnut',
+                data: { labels: [], datasets: [{ data: [], backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444'], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '70%' }
+            });
+
+            const ctxTrend = document.getElementById('trendChart').getContext('2d');
+            trendChart = new Chart(ctxTrend, {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: 'Monthly Sales ($)', data: [], borderColor: '#6366f1', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderWidth: 3, fill: true, tension: 0.4 }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        };
+
+        // Handle File Upload
+        document.getElementById('csvFileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById('uploadStatus').innerText = `Loading ${file.name}...`;
+
+            Papa.parse(file, {
+                header: true,
+                dynamicTyping: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    globalData = results.data;
+                    document.getElementById('uploadStatus').innerHTML = `<span class="text-emerald-500"><i class="fas fa-check-circle"></i> Successfully loaded ${globalData.length.toLocaleString()} rows</span>`;
+                    
+                    // Show Dashboard
+                    const dash = document.getElementById('dashboardContent');
+                    dash.classList.remove('hidden');
+                    setTimeout(() => dash.classList.remove('opacity-0'), 100);
+
+                    populateSlicers();
+                    updateDashboard();
+                }
+            });
+        });
+
+        // Helper to format currency
+        const formatMoney = (amount) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+        
+        // Helper to parse numbers safely
+        const parseNum = (val) => {
+            if (typeof val === 'number') return val;
+            if (!val) return 0;
+            return parseFloat(val.toString().replace(/[^0-9.-]+/g,"")) || 0;
+        };
+
+        // Helper to extract Year and Month
+        const getYear = (dateStr) => {
+            if (!dateStr) return null;
+            const d = new Date(dateStr);
+            return isNaN(d) ? null : d.getFullYear().toString();
+        };
+        const getMonthYear = (dateStr) => {
+            if (!dateStr) return null;
+            const d = new Date(dateStr);
+            if (isNaN(d)) return null;
+            return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+        };
+
+        // Populate dropdown slicers dynamically based on uploaded data
+        function populateSlicers() {
+            const years = new Set();
+            const countries = new Set();
+
+            globalData.forEach(row => {
+                const y = getYear(row['Order Date'] || row['OrderDate'] || row['Date']);
+                if (y) years.add(y);
+                const c = row['Country'] || row['Country/Region'];
+                if (c) countries.add(c);
+            });
+
+            const yearSelect = document.getElementById('yearSlicer');
+            yearSelect.innerHTML = '<option value="All">All Years</option>';
+            Array.from(years).sort().forEach(y => yearSelect.innerHTML += `<option value="${y}">${y}</option>`);
+
+            const countrySelect = document.getElementById('countrySlicer');
+            countrySelect.innerHTML = '<option value="All">All Countries</option>';
+            Array.from(countries).sort().forEach(c => countrySelect.innerHTML += `<option value="${c}">${c}</option>`);
+        }
+
+        // Core Aggregation Engine (Acts like Excel Pivot Tables)
+        function updateDashboard() {
+            const selectedYear = document.getElementById('yearSlicer').value;
+            const selectedCountry = document.getElementById('countrySlicer').value;
+
+            // 1. FILTER DATA (Like a Slicer)
+            const filteredData = globalData.filter(row => {
+                const rowYear = getYear(row['Order Date'] || row['OrderDate'] || row['Date']);
+                const rowCountry = row['Country'] || row['Country/Region'];
+                
+                const matchYear = selectedYear === 'All' || rowYear === selectedYear;
+                const matchCountry = selectedCountry === 'All' || rowCountry === selectedCountry;
+                return matchYear && matchCountry;
+            });
+
+            // 2. CALCULATE KPIs
+            let totalSales = 0;
+            let totalProfit = 0;
+            const uniqueOrders = new Set();
+
+            filteredData.forEach(row => {
+                totalSales += parseNum(row['Sales']);
+                totalProfit += parseNum(row['Profit'] || 0); // Defaults to 0 if Profit column is missing
+                if (row['Order ID'] || row['OrderID']) uniqueOrders.add(row['Order ID'] || row['OrderID']);
+            });
+
+            const orderCount = uniqueOrders.size || filteredData.length; // Fallback to row count if no Order ID
+            const avgOrder = orderCount > 0 ? (totalSales / orderCount) : 0;
+
+            document.getElementById('kpiSales').innerText = formatMoney(totalSales);
+            document.getElementById('kpiProfit').innerText = formatMoney(totalProfit);
+            document.getElementById('kpiOrders').innerText = orderCount.toLocaleString();
+            document.getElementById('kpiAvg').innerText = formatMoney(avgOrder);
+
+            // 3. GROUP DATA FOR CHARTS (Like a Pivot Table)
+            const regionData = {};
+            const categoryData = {};
+            const trendData = {};
+
+            filteredData.forEach(row => {
+                const sales = parseNum(row['Sales']);
+                const region = row['Region'] || 'Unknown';
+                const category = row['Category'] || 'Unknown';
+                const month = getMonthYear(row['Order Date'] || row['OrderDate'] || row['Date']) || 'Unknown';
+
+                regionData[region] = (regionData[region] || 0) + sales;
+                categoryData[category] = (categoryData[category] || 0) + sales;
+                if(month !== 'Unknown') trendData[month] = (trendData[month] || 0) + sales;
+            });
+
+            // 4. UPDATE CHARTS
+            // Update Region Chart
+            regionChart.data.labels = Object.keys(regionData);
+            regionChart.data.datasets[0].data = Object.values(regionData);
+            regionChart.update();
+
+            // Update Category Chart
+            categoryChart.data.labels = Object.keys(categoryData);
+            categoryChart.data.datasets[0].data = Object.values(categoryData);
+            categoryChart.update();
+
+            // Update Trend Chart (Sort by Date chronologically)
+            const sortedMonths = Object.keys(trendData).sort();
+            trendChart.data.labels = sortedMonths;
+            trendChart.data.datasets[0].data = sortedMonths.map(m => trendData[m]);
+            trendChart.update();
+        }
+    </script>
+</body>
+</html>

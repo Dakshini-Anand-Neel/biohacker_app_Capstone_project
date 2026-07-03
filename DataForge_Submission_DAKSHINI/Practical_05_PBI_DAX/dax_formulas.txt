@@ -1,0 +1,9 @@
+--- Calculated Columns ---
+Unique Order ID = 'Query1'[Order ID.1] & "-" & 'Query1'[Order ID.3]
+Shipping Delay = DATEDIFF('Query1'[Order Date], 'Query1'[Ship Date], DAY)
+
+--- Measures ---
+Order Count = DISTINCTCOUNT('Query1'[Unique Order ID])
+Total Sales = SUM('Query1'[Sales])
+Average Sales per Order = DIVIDE([Total Sales], [Order Count], 0)
+Transaction Volume = COUNTROWS('Query1')

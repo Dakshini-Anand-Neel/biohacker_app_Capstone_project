@@ -1,0 +1,19 @@
+column,dtype,missing,unique,sample
+Row ID,int64,0,9800,1
+Order ID,str,0,4922,CA-2017-152156
+Order Date,str,0,1230,08-11-2017
+Ship Date,str,0,1326,11-11-2017
+Ship Mode,str,0,4,Second Class
+Customer ID,str,0,793,CG-12520
+Customer Name,str,0,793,Claire Gute
+Segment,str,0,3,Consumer
+Country,str,0,1,United States
+City,str,0,529,Henderson
+State,str,0,49,Kentucky
+Postal Code,str,10,627,42420
+Region,str,0,4,South
+Product ID,str,0,1861,FUR-BO-10001798
+Category,str,0,3,Furniture
+Sub-Category,str,0,17,Bookcases
+Product Name,str,0,1849,Bush Somerset Collection Bookcase
+Sales,str,0,5396,261.96
